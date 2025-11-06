@@ -1,17 +1,17 @@
 import React from "react";
 import InvoiceConsult from "../invoiceConsult";
 import InvoiceUpload from "../invoiceUpload";
+import InvoiceUploadIA from "../invoiceUploadIA";
+import CalculadoraCotizaciones from "../quoteCalculator"; 
 import { Pie } from "react-chartjs-2";
 import styles from "../../styles/detailArea.module.css";
 import { chartColors } from "../../home/colors";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 
-// Define los posibles valores para `activeComponent`
-type ActiveComponentType = "consult" | "upload" | null;
+type ActiveComponentType = "consult" | "upload" | "uploadIA" | "calculator" | null;
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Define la estructura de los props que recibe `DetailArea`
 interface DetailAreaProps {
   activeComponent: ActiveComponentType;
   context: {
@@ -22,18 +22,8 @@ interface DetailAreaProps {
 }
 
 const monthNames = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
 const getMonthName = (monthNumber: string) => {
   const index = parseInt(monthNumber, 10) - 1;
@@ -59,23 +49,56 @@ const DetailArea: React.FC<DetailAreaProps> = ({ activeComponent, context }) => 
 
   return (
     <main className={styles.detailArea}>
+      {/* Títulos contextuales */}
+      {activeComponent === "consult" && (
+        <h2 className="text-2xl mb-4 text-center">
+          Facturas por categoría {getMonthName(currentMonth)} de 2024
+        </h2>
+      )}
+
+      {activeComponent === "calculator" && role === "Admin" && (
+        <h2 className="text-2xl mb-4 text-center">
+          Calculadora de Cotizaciones
+        </h2>
+      )}
+
+      {/* Render condicional por rol */}
+      {activeComponent === "uploadIA" && role === "Admin" && <InvoiceUploadIA />}
       {activeComponent === "consult" && role === "Admin" && <InvoiceConsult />}
       {activeComponent === "upload" && role === "Admin" && <InvoiceUpload />}
+
       {activeComponent === "consult" && role === "Externo" && <InvoiceConsult />}
       {activeComponent === "upload" && role === "Externo" && (
         <p>Función no permitida para este Role.</p>
       )}
+      {activeComponent === "calculator" && role === "Admin" && (
+        <CalculadoraCotizaciones />
+      )}
+
       {!role && (
         <p>Usuario sin Role, comuníquese con el administrador por favor.</p>
       )}
 
-      <h2 className="text-2xl mb-4 text-center">
-        Facturas por categoría {getMonthName(currentMonth)} de 2024
-      </h2>
-      {isEmptyData ? (
-        <p>No tienes facturas registradas para el mes seleccionado</p>
+      {/* Gráfico o bienvenida si no hay módulo activo ni datos */}
+      {!["consult", "upload", "uploadIA", "calculator"].includes(activeComponent || "") && isEmptyData ? (
+        <div className="max-w-2xl mx-auto text-center p-6 bg-white/50 rounded-lg shadow-md">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+            Bienvenido a FactuPro
+          </h2>
+          <p className="text-gray-700 text-base leading-relaxed">
+            Este sistema está diseñado para que TECHVERTICAL SA pueda registrar y consultar sus facturas de compra.
+            <br /><br />
+            Usa el menú lateral para subir nuevas facturas o consultar reportes por mes y categoría.
+            También puedes generar reportes en formato PDF o Excel.
+            <br /><br />
+            Si tienes dudas, no dudes en contactar al administrador del sistema.
+          </p>
+        </div>
       ) : (
-        <Pie data={data} />
+        !isEmptyData && 
+        activeComponent !== "calculator" && ( 
+          <Pie data={data} />
+        )
       )}
     </main>
   );

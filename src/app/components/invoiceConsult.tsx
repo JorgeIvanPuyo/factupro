@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from "react";
 import styles from "../styles/invoiceConsult.module.css";
 import categories from "../utils/categories";
-import { jsPDF } from "jspdf";
 import { getInvoices, deleteInvoice } from "../services/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import generateReport from "../utils/generateReport";
+import generateXLSXReport from "../utils/generateXLSXReport";
 import {
   AiOutlinePicture,
   AiOutlineEdit,
@@ -15,7 +16,7 @@ import { parseISO, format } from "date-fns";
 
 interface Invoice {
   id: string;
-  date: Date; 
+  date: Date;
   category: string;
   description: string;
   value: number;
@@ -24,10 +25,11 @@ interface Invoice {
   Subtotal: number;
   ITBMSUSD: number;
 }
+import { AiOutlineDownload } from "react-icons/ai";
 
 const InvoiceConsult: React.FC = () => {
   const context = useContext(AppContext);
-  const [month, setMonth] = useState<string>("");
+  const [month, setMonth] = useState<string>("01");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
@@ -153,44 +155,28 @@ const InvoiceConsult: React.FC = () => {
     }
   };
 
-  const generateReport = () => {
-    const doc = new jsPDF();
-
-    doc.setFontSize(10);
-    let y = 25;
-
-    const logo = new Image();
-    logo.src = "/logo.png";
-    doc.addImage(logo, "PNG", 10, 10, 50, 10);
-
-    let reportTitle = "Reporte de Facturas";
-    if (month !== "") {
-      reportTitle += ` mes ${month}`;
-    }
-    if (selectedCategory !== "") {
-      reportTitle += ` categoría ${selectedCategory}`;
-    }
-
-    doc.text(reportTitle, 60, y);
-    y += 10;
-
-    doc.line(10, y, 200, y);
-    y += 5;
-
-    filteredInvoices.forEach((invoice) => {
-      doc.text(
-        `Fecha: ${invoice.date} | Categoría: ${invoice.category} | Descripción: ${invoice.description} | Valor: ${invoice.value}`,
-        10,
-        y
-      );
-      y += 5;
-
-      doc.line(10, y, 200, y);
-      y += 5;
+  const handleGenerateReport = () => {
+    generateReport({
+      invoices: filteredInvoices,
+      month: month,
+      year: selectedYear,
+      category: selectedCategory,
+      totalAmount: totalAmount,
+      subTotalAmount: subTotalAmount,
+      itbmsAmount: itbmsAmount,
     });
-    y += 10;
-    doc.text(`Total: ${totalAmount}`, 10, y);
-    doc.save("reporte_facturas.pdf");
+  };
+
+  const handleGenerateExcelReport = () => {
+    generateXLSXReport({
+      invoices: filteredInvoices,
+      month: month,
+      year: selectedYear,
+      category: selectedCategory,
+      totalAmount: totalAmount,
+      subTotalAmount: subTotalAmount,
+      itbmsAmount: itbmsAmount,
+    });
   };
 
   const handleUpdate = (id: string) => {
@@ -271,6 +257,7 @@ const InvoiceConsult: React.FC = () => {
   }, [selectedYear]);
 
   return (
+
     <div className={styles.container}>
       {/* Select para meses */}
       <select
@@ -321,81 +308,75 @@ const InvoiceConsult: React.FC = () => {
       {/* Lista para mostrar facturas */}
       <div className={styles.invoiceList}>
         {filteredInvoices.map((invoice) => (
-          <div key={invoice.id} className={styles.invoiceItem}>
-            {/* Descripción: ocupa todo el ancho */}
-            <p className={styles.invoiceDescription}>{invoice.description}</p>
+          <div key={invoice.id} className={styles.invoiceCard}>
+            <div className={styles.cardHeader}>
+              <h3 className={styles.invoiceTitle}>{invoice.description}</h3>
+              <span className={styles.invoiceDate}>{format(new Date(invoice.date), "dd/MM/yyyy")}</span>
+            </div>
 
-            {/* Contenedor para los div de izquierda y derecha */}
-            <div className={styles.invoiceContent}>
-              {/* Contenido lado izquierdo */}
-              <div className={styles.invoiceLeft}>
-                <h2>SubTotal</h2>
-                <p className={styles.invoiceValue}>
-                  ${invoice.Subtotal?.toFixed(2) || "0.00"}
-                </p>
-                <h2>ITBMS</h2>
-                <p className={styles.invoiceValue}>
-                  ${invoice.ITBMSUSD?.toFixed(2) || "0.00"}
-                </p>
-                <h2>Total</h2>
-                <p className={styles.invoiceValue}>
-                  ${invoice.value.toFixed(2)}
-                </p>
+            <div className={styles.cardBody}>
+              <div className={styles.cardInfoLeft}>
+                <p><strong>Categoría:</strong> {invoice.category}</p>
+                <p><strong>Usuario:</strong> {invoice.userName}</p>
               </div>
+              <div className={styles.cardInfoRight}>
+                <p>
+                  <strong>Subtotal:</strong> ${invoice.Subtotal.toFixed(2)} |{" "}
+                  <strong>ITBMS:</strong> ${invoice.ITBMSUSD.toFixed(2)}
+                </p>
+                <p><strong>Total:</strong> ${invoice.value.toFixed(2)}</p>
+              </div>
+            </div>
 
-              {/* Contenido lado derecho */}
-              <div className={styles.invoiceRight}>
-                <p>{format(new Date(invoice.date), "dd/MM/yyyy")}</p>
-                <p className={styles.invoiceCategory}>{invoice.category}</p>
-                <p className={styles.invoiceUser}>{invoice.userName}</p>
-                <div className={styles.invoiceButtons}>
-                  <AiOutlinePicture
-                    className={styles.viewButton}
-                    onClick={() => handleView(invoice.imageUrl)}
-                  />
-                  <AiOutlineEdit
-                    className={
-                      context.role === "Admin"
-                        ? styles.updateButton
-                        : styles.noViewButton
-                    }
-                    onClick={() => handleUpdate(invoice.id)}
-                  />
-                  <AiTwotoneDelete
-                    className={
-                      context.role === "Admin"
-                        ? styles.deleteButton
-                        : styles.noViewButton
-                    }
-                    onClick={() => handleDelete(invoice.id, invoice.imageUrl)}
-                  />
-                </div>
-              </div>
+            <div className={styles.cardActions}>
+              <AiOutlinePicture className={styles.iconAction} onClick={() => handleView(invoice.imageUrl)} />
+              {context.role === "Admin" && (
+                <>
+                  <AiOutlineEdit className={styles.iconAction} onClick={() => handleUpdate(invoice.id)} />
+                  <AiTwotoneDelete className={styles.iconDelete} onClick={() => handleDelete(invoice.id, invoice.imageUrl)} />
+                </>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      <div className={styles.totalAmount}>
-        <p>SubTotal: ${subTotalAmount.toFixed(2)}</p>
-      </div>
+      {filteredInvoices.length > 0 && (
+        <>
+          <div className={styles.totalAmount}>
+            <p>SubTotal: ${subTotalAmount.toFixed(2)}</p>
+          </div>
 
-      <div className={styles.totalAmount}>
-        <p>ITBMS: ${itbmsAmount.toFixed(2)}</p>
-      </div>
+          <div className={styles.totalAmount}>
+            <p>ITBMS: ${itbmsAmount.toFixed(2)}</p>
+          </div>
 
-      <div className={styles.totalAmount}>
-        <p>Total: ${totalAmount.toFixed(2)}</p>
-      </div>
+          <div className={styles.totalAmount}>
+            <p>Total: ${totalAmount.toFixed(2)}</p>
+          </div>
+        </>
+      )}
 
-      {/* Botón de generación de reporte */}
-      <button
-        className={styles.reportButton}
-        onClick={generateReport}
-        disabled={filteredInvoices.length === 0}
-      >
-        Generar Reporte
-      </button>
+
+      {filteredInvoices.length > 0 && (
+        <div className={styles.reportButtons}>
+          <button
+            className={styles.reportBtn}
+            onClick={handleGenerateReport}
+          >
+            <AiOutlineDownload className={styles.downloadIcon} />
+            Generar PDF
+          </button>
+
+          <button
+            className={styles.reportBtn}
+            onClick={handleGenerateExcelReport}
+          >
+            <AiOutlineDownload className={styles.downloadIcon} />
+            Generar Excel
+          </button>
+        </div>
+      )}
 
       {/*Modal de confimacion de eliminacion */}
       <div className={context.modal ? styles.modalopen : styles.modalclose}>
